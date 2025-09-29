@@ -37,3 +37,7 @@ label.import { display:inline-flex; align-items:center; gap:8px; padding:10px 12
 .points { background:#0b0e13; border:1px solid #1f2633; padding:10px; border-radius:8px; height:140px; overflow:auto; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#cfe3ff; }
 input[type="number"] { background:#0b1422; border:1px solid #2a3548; color:#eaeef2; padding:6px 8px; border-radius:8px; width:90px; }
 .buttons { display:flex; flex-wrap:wrap; gap:8px; }
+button.cabbage {
+  background: #3b1d5a;
+  border-color: #5a2d82;
+}

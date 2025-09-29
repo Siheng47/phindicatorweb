@@ -32,6 +32,8 @@ let rafId = null;
 let useManual = false;
 let manualCalib = loadManualCalib() || [];
 let defaultCalib = [];
+let useCabbage = false;
+let cabbageCalib = [];
 
 // Load calibration.json for default mode
 fetch("calibration.json")
@@ -109,7 +111,9 @@ function getROIHue(imageData){
 
 // ---- Calibration mapping ----
 function getActiveCalib(){
-  return (useManual && manualCalib.length>=2) ? manualCalib : defaultCalib;
+  if (useCabbage && cabbageCalib.length >= 2) return cabbageCalib;
+  if (useManual && manualCalib.length >= 2) return manualCalib;
+  return defaultCalib;
 }
 function hueToPH(hue){
   const calib=getActiveCalib();
@@ -199,6 +203,26 @@ fileImport.addEventListener("change",e=>{
   r.onload=()=>{try{manualCalib=JSON.parse(r.result);saveManualCalib();alert("Imported.");}catch{alert("Invalid file.");}};
   r.readAsText(file);
 });
+
+fetch("cabbage_calibration.json")
+  .then(resp => resp.json())
+  .then(data => {
+    cabbageCalib = data.sort((a, b) => a.hue - b.hue);
+    console.log("Cabbage calibration loaded:", cabbageCalib);
+  })
+  .catch(err => console.error("Failed to load cabbage calibration:", err));
+
+  const useCabbageBtn = document.getElementById('useCabbage');
+useCabbageBtn.onclick = () => {
+  if (cabbageCalib.length < 2) {
+    alert("Need at least 2 points in cabbage calibration file.");
+    useCabbage = false;
+  } else {
+    useCabbage = true;
+  }
+  useManual = false;
+  activeModeTag.textContent = "Active: " + (useCabbage ? "Purple Cabbage" : "Default");
+};
 
 // ---- Boot ----
 startCamera();
