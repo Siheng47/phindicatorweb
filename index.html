@@ -1,77 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>pH Estimator</title>
-  <style>
-    body { text-align: center; font-family: sans-serif; }
-    video, canvas { border: 2px solid green; border-radius: 8px; }
-    #phResult { font-size: 1.5em; margin-top: 10px; }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>pH Level Estimator</h1>
-  <video id="video" autoplay playsinline></video><br>
-  <canvas id="canvas" width="320" height="240"></canvas>
-  <div id="phResult">pH: --</div>
+  <header>
+    <h1>pH Estimator</h1>
+    <div class="pill">ROI: <span id="roiSize">64×64</span></div>
+  </header>
 
-  <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const phResult = document.getElementById('phResult');
+  <main>
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
 
-    // Ask for camera
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => video.srcObject = stream)
-      .catch(err => console.error("Camera error:", err));
+    <div class="readout">
+      <div id="status">Waiting for camera…</div>
+      <div id="result">pH: --</div>
+      <div id="debug">Hue: --</div>
+    </div>
 
-    // Hue → pH mapping (replace with calibration later)
-    function hueToPH(hue) {
-      if (hue < 30) return 2 + hue/30 * 2;    // rough 2–4
-      if (hue < 90) return 4 + (hue-30)/60*3; // 4–7
-      if (hue < 150) return 7 + (hue-90)/60*3;// 7–10
-      return 10 + (hue-150)/30*2;             // 10–12
-    }
+    <!-- pH color bar -->
+    <section class="phbar">
+      <div class="phbar-labels">
+        <span>1</span><span>4</span><span>7</span><span>10</span><span>14</span>
+      </div>
+      <div class="bar" id="phBar">
+        <div class="marker" id="phMarker" title="estimated pH"></div>
+      </div>
+    </section>
 
-    function rgbToHsv(r,g,b) {
-      r/=255; g/=255; b/=255;
-      let max=Math.max(r,g,b), min=Math.min(r,g,b);
-      let h,s,v=max, d=max-min;
-      s=max==0?0:d/max;
-      if(max==min) h=0;
-      else {
-        switch(max){
-          case r: h=(g-b)/d+(g<b?6:0); break;
-          case g: h=(b-r)/d+2; break;
-          case b: h=(r-g)/d+4; break;
-        }
-        h/=6;
-      }
-      return [h*360, s, v];
-    }
+    <!-- Calibration panel -->
+    <section class="calib">
+      <div class="calib-header">
+        <h2>Calibration</h2>
+        <div class="mode">
+          Mode:
+          <button id="useDefault" class="secondary">Default</button>
+          <button id="useManual" class="secondary">Manual</button>
+          <span id="activeMode" class="tag">Active: Default</span>
+        </div>
+      </div>
 
-    function processFrame() {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      let frame = ctx.getImageData(100, 80, 120, 80); // ROI
-      let data = frame.data;
+      <div class="calib-grid">
+        <div class="card">
+          <h3>Add manual point</h3>
+          <p>Point the ROI at your reference color, enter the known pH (1–14), then capture.</p>
+          <div class="row">
+            <label for="phInput">pH</label>
+            <input id="phInput" type="number" min="1" max="14" step="0.1" value="7" />
+            <button id="btnCapture">Capture current ROI → Add</button>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="wbToggle"> Simple white balance (ROI)</label>
+          </div>
+        </div>
 
-      let hueSum=0, count=0;
-      for(let i=0; i<data.length; i+=4){
-        let [h,s,v]=rgbToHsv(data[i], data[i+1], data[i+2]);
-        if(s>0.2 && v>0.2){ // filter low saturation/dark pixels
-          hueSum+=h; count++;
-        }
-      }
-      if(count>0){
-        let hue=hueSum/count;
-        let ph=hueToPH(hue).toFixed(2);
-        phResult.textContent=`Hue: ${hue.toFixed(1)} → pH ~ ${ph}`;
-      }
-      requestAnimationFrame(processFrame);
-    }
+        <div class="card">
+          <h3>Manage points</h3>
+          <div class="buttons">
+            <button id="btnReset">Reset manual</button>
+            <button id="btnSave">Save</button>
+            <button id="btnLoad">Load</button>
+            <button id="btnExport">Export</button>
+            <label class="import">
+              Import <input id="fileImport" type="file" accept="application/json" hidden />
+            </label>
+          </div>
+          <pre id="pointsList" class="points">No manual points yet.</pre>
+        </div>
+      </div>
+    </section>
+  </main>
 
-    video.addEventListener('play', () => requestAnimationFrame(processFrame));
-  </script>
+  <footer>
+    <button id="smaller">Smaller ROI</button>
+    <button id="bigger">Bigger ROI</button>
+    <button id="toggle">Pause/Resume</button>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>
