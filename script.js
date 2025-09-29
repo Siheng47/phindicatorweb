@@ -13,6 +13,7 @@ const btnToggle = document.getElementById('toggle');
 const phMarker = document.getElementById('phMarker');
 const useDefaultBtn = document.getElementById('useDefault');
 const useManualBtn = document.getElementById('useManual');
+const useCabbageBtn = document.getElementById('useCabbage');
 const activeModeTag = document.getElementById('activeMode');
 
 const phInput = document.getElementById('phInput');
@@ -29,10 +30,9 @@ const wbToggle = document.getElementById('wbToggle');
 let running = true;
 let roiSize = 64;
 let rafId = null;
-let useManual = false;
+let mode = "default"; // "default", "manual", "cabbage"
 let manualCalib = loadManualCalib() || [];
 let defaultCalib = [];
-let useCabbage = false;
 let cabbageCalib = [];
 
 // Load calibration.json for default mode
@@ -46,7 +46,16 @@ fetch("calibration.json")
     console.error("Failed to load calibration.json:", err);
   });
 
-// ---- Camera (same as before) ----
+// Load cabbage_calibration.json
+fetch("cabbage_calibration.json")
+  .then(resp => resp.json())
+  .then(data => {
+    cabbageCalib = data.sort((a, b) => a.hue - b.hue);
+    console.log("Cabbage calibration loaded:", cabbageCalib);
+  })
+  .catch(err => console.error("Failed to load cabbage calibration:", err));
+
+// ---- Camera ----
 async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: 'environment' } }, audio: false });
@@ -94,7 +103,6 @@ function circularMeanDeg(values, weights) {
   return ang;
 }
 function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-function hueDistance(a,b){ let d=Math.abs(a-b)%360; return d>180?360-d:d; }
 function normalizeHue(h){ h=h%360; return h<0?h+360:h; }
 
 // ROI Hue
@@ -111,8 +119,8 @@ function getROIHue(imageData){
 
 // ---- Calibration mapping ----
 function getActiveCalib(){
-  if (useCabbage && cabbageCalib.length >= 2) return cabbageCalib;
-  if (useManual && manualCalib.length >= 2) return manualCalib;
+  if (mode === "cabbage" && cabbageCalib.length >= 2) return cabbageCalib;
+  if (mode === "manual" && manualCalib.length >= 2) return manualCalib;
   return defaultCalib;
 }
 function hueToPH(hue){
@@ -164,8 +172,31 @@ btnSmall.onclick=()=>{roiSize=Math.max(24,roiSize-16);roiSizeLabel.textContent=r
 btnBig.onclick=()=>{roiSize=Math.min(256,roiSize+16);roiSizeLabel.textContent=roiSize+"×"+roiSize;};
 btnToggle.onclick=()=>{running=!running;if(running){drawAndProcess();}else{cancelAnimationFrame(rafId);}};
 
-useDefaultBtn.onclick=()=>{useManual=false;activeModeTag.textContent="Active: Default";};
-useManualBtn.onclick =()=>{if(manualCalib.length<2){alert("Need at least 2 manual points.");useManual=false;}else{useManual=true;}activeModeTag.textContent="Active: "+(useManual?"Manual":"Default");};
+// Mode buttons
+useDefaultBtn.onclick=()=> {
+  mode = "default";
+  activeModeTag.textContent = "Active: Default";
+};
+useManualBtn.onclick=()=> {
+  if(manualCalib.length<2){
+    alert("Need at least 2 manual points.");
+    mode = "default";
+    activeModeTag.textContent = "Active: Default";
+  } else {
+    mode = "manual";
+    activeModeTag.textContent = "Active: Manual";
+  }
+};
+useCabbageBtn.onclick=()=> {
+  if(cabbageCalib.length<2){
+    alert("Need at least 2 points in cabbage calibration file.");
+    mode = "default";
+    activeModeTag.textContent = "Active: Default";
+  } else {
+    mode = "cabbage";
+    activeModeTag.textContent = "Active: Purple Cabbage";
+  }
+};
 
 // ---- Manual calibration ----
 function saveManualCalib(){localStorage.setItem("ph_manual_calibration",JSON.stringify(manualCalib));}
@@ -183,11 +214,16 @@ btnCapture.onclick=()=>{
   if(!(p>=1&&p<=14)){alert("Enter pH 1-14");return;}
   manualCalib.push({hue:normalizeHue(meanHue),pH:p});
   saveManualCalib();
+  mode = "manual";
   activeModeTag.textContent="Active: Manual";
-  useManual=true;
 };
 
-btnReset.onclick=()=>{manualCalib=[];saveManualCalib();activeModeTag.textContent="Active: Default";useManual=false;};
+btnReset.onclick=()=>{
+  manualCalib=[];
+  saveManualCalib();
+  mode="default";
+  activeModeTag.textContent="Active: Default";
+};
 btnSave.onclick =()=>{saveManualCalib();alert("Saved manual calibration.");};
 btnLoad.onclick =()=>{manualCalib=loadManualCalib()||[];alert("Loaded manual calibration.");};
 btnExport.onclick=()=>{
@@ -203,26 +239,6 @@ fileImport.addEventListener("change",e=>{
   r.onload=()=>{try{manualCalib=JSON.parse(r.result);saveManualCalib();alert("Imported.");}catch{alert("Invalid file.");}};
   r.readAsText(file);
 });
-
-fetch("cabbage_calibration.json")
-  .then(resp => resp.json())
-  .then(data => {
-    cabbageCalib = data.sort((a, b) => a.hue - b.hue);
-    console.log("Cabbage calibration loaded:", cabbageCalib);
-  })
-  .catch(err => console.error("Failed to load cabbage calibration:", err));
-
-  const useCabbageBtn = document.getElementById('useCabbage');
-useCabbageBtn.onclick = () => {
-  if (cabbageCalib.length < 2) {
-    alert("Need at least 2 points in cabbage calibration file.");
-    useCabbage = false;
-  } else {
-    useCabbage = true;
-  }
-  useManual = false;
-  activeModeTag.textContent = "Active: " + (useCabbage ? "Purple Cabbage" : "Default");
-};
 
 // ---- Boot ----
 startCamera();
