@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>pH Estimator</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; }
+    video, canvas { border: 2px solid green; border-radius: 8px; }
+    #phResult { font-size: 1.5em; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>pH Level Estimator</h1>
+  <video id="video" autoplay playsinline></video><br>
+  <canvas id="canvas" width="320" height="240"></canvas>
+  <div id="phResult">pH: --</div>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const phResult = document.getElementById('phResult');
+
+    // Ask for camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => video.srcObject = stream)
+      .catch(err => console.error("Camera error:", err));
+
+    // Hue → pH mapping (replace with calibration later)
+    function hueToPH(hue) {
+      if (hue < 30) return 2 + hue/30 * 2;    // rough 2–4
+      if (hue < 90) return 4 + (hue-30)/60*3; // 4–7
+      if (hue < 150) return 7 + (hue-90)/60*3;// 7–10
+      return 10 + (hue-150)/30*2;             // 10–12
+    }
+
+    function rgbToHsv(r,g,b) {
+      r/=255; g/=255; b/=255;
+      let max=Math.max(r,g,b), min=Math.min(r,g,b);
+      let h,s,v=max, d=max-min;
+      s=max==0?0:d/max;
+      if(max==min) h=0;
+      else {
+        switch(max){
+          case r: h=(g-b)/d+(g<b?6:0); break;
+          case g: h=(b-r)/d+2; break;
+          case b: h=(r-g)/d+4; break;
+        }
+        h/=6;
+      }
+      return [h*360, s, v];
+    }
+
+    function processFrame() {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      let frame = ctx.getImageData(100, 80, 120, 80); // ROI
+      let data = frame.data;
+
+      let hueSum=0, count=0;
+      for(let i=0; i<data.length; i+=4){
+        let [h,s,v]=rgbToHsv(data[i], data[i+1], data[i+2]);
+        if(s>0.2 && v>0.2){ // filter low saturation/dark pixels
+          hueSum+=h; count++;
+        }
+      }
+      if(count>0){
+        let hue=hueSum/count;
+        let ph=hueToPH(hue).toFixed(2);
+        phResult.textContent=`Hue: ${hue.toFixed(1)} → pH ~ ${ph}`;
+      }
+      requestAnimationFrame(processFrame);
+    }
+
+    video.addEventListener('play', () => requestAnimationFrame(processFrame));
+  </script>
+</body>
+</html>
